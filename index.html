@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>newcode — neural wave optical carrier</title>
+  <script>
+    (function() {
+      var savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f5f2eb;
+      --bg-subtle: #eae3d5;
+      --surface: rgba(254, 252, 248, 0.94);
+      --surface-hover: rgba(255, 255, 255, 0.98);
+      --border: rgba(145, 126, 102, 0.24);
+      --border-hover: rgba(180, 67, 24, 0.45);
+      --text-main: #1f1b18;
+      --text-muted: #6e6457;
+      --accent: #b44318;
+      --accent-soft: rgba(180, 67, 24, 0.08);
+      --accent-glow: rgba(180, 67, 24, 0.2);
+      --mesh-color: rgba(60, 48, 36, 0.055);
+      --radius: 14px;
+      --radius-sm: 8px;
+      --sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --shadow-subtle: 0 4px 20px -2px rgba(60, 40, 20, 0.04);
+      --shadow-hover: 0 12px 30px -4px rgba(180, 67, 24, 0.12);
+    }
+
+    [data-theme="dark"] {
+      --bg: #07090e;
+      --bg-subtle: #0f131d;
+      --surface: rgba(15, 19, 28, 0.88);
+      --surface-hover: rgba(20, 26, 38, 0.95);
+      --border: rgba(94, 129, 172, 0.18);
+      --border-hover: rgba(59, 130, 246, 0.5);
+      --text-main: #f3f6fc;
+      --text-muted: #8b9bb4;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59, 130, 246, 0.12);
+      --accent-glow: rgba(59, 130, 246, 0.25);
+      --mesh-color: rgba(255, 255, 255, 0.045);
+      --shadow-subtle: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+      --shadow-hover: 0 12px 32px -4px rgba(59, 130, 246, 0.18);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--sans);
+      line-height: 1.6;
+      min-height: 100vh;
+      font-size: 14px;
+      position: relative;
+      overflow-x: hidden;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    #warp-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .ambient-glow {
+      position: fixed;
+      top: -200px; right: 20%;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, rgba(0,0,0,0) 70%);
+      z-index: 0;
+      pointer-events: none;
+      filter: blur(90px);
+      opacity: 0.55;
+    }
+
+    .app-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 1.75rem 1.75rem 3.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+      min-height: 100vh;
+    }
+
+    header {
+      position: sticky;
+      top: 1.25rem;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.85rem 1.4rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-subtle);
+      transition: border-color 0.25s ease;
+    }
+    header:hover { border-color: var(--border-hover); }
+
+    .brand-morph {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text-main);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      letter-spacing: -0.015em;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .morph-expand {
+      display: inline-block;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      vertical-align: bottom;
+      color: var(--accent);
+      animation: morphWord 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    @keyframes morphWord {
+      0%, 15%, 85%, 100% { max-width: 0; opacity: 0; transform: translateY(1px); }
+      35%, 65% { max-width: 80px; opacity: 1; transform: translateY(0); }
+    }
+
+    .header-actions { display: flex; align-items: center; gap: 0.5rem; }
+    .theme-icon-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      font-size: 0.95rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .theme-icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: rotate(20deg) scale(1.08);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 1.75rem;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .nav-tabs { display: flex; gap: 4px; }
+    .tab-btn {
+      padding: 7px 24px;
+      font-size: 0.82rem;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--sans);
+      font-weight: 600;
+      text-transform: lowercase;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover { color: var(--text-main); }
+    .tab-btn.active {
+      background: var(--surface);
+      color: var(--accent);
+      box-shadow: var(--shadow-subtle);
+    }
+    .hw-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.74rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      padding-right: 8px;
+      text-transform: lowercase;
+    }
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #94a3b8;
+      transition: background 0.3s ease;
+    }
+    .dot.on { background: #10b981; box-shadow: 0 0 8px #10b981; }
+
+    /* STUDIO 2-COLUMN LAYOUT */
+    .studio-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 2rem;
+      align-items: start;
+    }
+    .studio-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+    .studio-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+    }
+
+    .view-container { display: none; }
+    .view-container.active { display: block; }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.85rem 1.1rem;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: -6px;
+      padding: 0 2px;
+      text-transform: lowercase;
+    }
+
+    .themes-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+    }
+    .themes-title {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: lowercase;
+    }
+    .theme-chips {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .theme-chip {
+      padding: 8px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-align: center;
+      transition: all 0.15s ease;
+      user-select: none;
+      border: 1px solid transparent;
+      text-transform: lowercase;
+    }
+    .theme-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .theme-chip.active {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    /* THEME DYNAMIC VIEWPORT */
+    .viewport {
+      width: 360px;
+      height: 360px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: #000000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+      cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+    .viewport:hover { border-color: var(--border-hover); }
+    .viewport canvas { display: block; width: 360px; height: 360px; }
+
+    .drop-box {
+      width: 360px;
+      height: 360px;
+      border-radius: var(--radius);
+      border: 2px dashed var(--border);
+      background: var(--bg-subtle);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      padding: 1rem;
+      text-align: center;
+    }
+    .drop-box:hover, .drop-box.dragover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      transform: scale(0.99);
+    }
+    .drop-box-icon {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      color: var(--accent);
+      box-shadow: var(--shadow-subtle);
+      transition: all 0.25s ease;
+    }
+    .drop-box:hover .drop-box-icon {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+    .drop-box-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+      text-transform: lowercase;
+    }
+    .drop-box-hint {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      text-transform: lowercase;
+    }
+    .decode-canvas {
+      display: none;
+      width: 360px; height: 360px;
+      border-radius: var(--radius-sm);
+    }
+    .decode-canvas.loaded { display: block; }
+
+    .btn-row { display: flex; gap: 0.75rem; width: 100%; }
+    .btn {
+      flex: 1;
+      padding: 0.85rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      text-transform: lowercase;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-primary { background: var(--text-main); color: var(--bg); }
+    .btn-primary:hover {
+      background: var(--accent);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .btn-subtle {
+      background: var(--bg-subtle);
+      border-color: var(--border);
+      color: var(--text-main);
+    }
+    .btn-subtle:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+
+    .decode-result-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.15rem;
+    }
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .detected-badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      text-transform: lowercase;
+    }
+    .readout-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .readout {
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      color: var(--text-main);
+      word-break: break-all;
+      user-select: text;
+      flex: 1;
+    }
+    .readout:empty::before {
+      content: "awaiting image for decode...";
+      color: var(--text-muted);
+    }
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      font-family: var(--mono);
+      display: none;
+      text-transform: lowercase;
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ARCHITECTURE SECTION */
+    .architecture-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .arch-header-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .arch-title {
+      font-size: 0.88rem;
+      font-family: var(--mono);
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: lowercase;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .arch-lead {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .tech-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .tech-card-title {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      text-transform: lowercase;
+    }
+    .tech-card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    .diagram-img {
+      width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .diagram-dark { display: none; }
+    .diagram-sepia { display: block; background: #f5f2eb; }
+
+    [data-theme="dark"] .diagram-dark { display: block; background: #0b0f19; }
+    [data-theme="dark"] .diagram-sepia { display: none; }
+
+    .spec-table {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.25rem;
+    }
+    .spec-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-family: var(--mono);
+      text-transform: lowercase;
+    }
+    .spec-row span:first-child {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+    }
+    .spec-row span:last-child {
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    .dual-card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .comp-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.9rem;
+      font-family: var(--mono);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .comp-card-title {
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: lowercase;
+      font-size: 0.72rem;
+    }
+    .comp-card-body {
+      color: var(--text-muted);
+      line-height: 1.45;
+      font-size: 0.72rem;
+    }
+
+    .page-footer {
+      margin-top: auto;
+      padding: 2rem 0 1rem;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      border-top: 1px dashed var(--border);
+      text-transform: lowercase;
+    }
+    .footer-author {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      border-bottom: 1px dotted var(--border-hover);
+      padding-bottom: 1px;
+    }
+    .footer-author:hover {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    @media (max-width: 900px) {
+      .studio-grid { grid-template-columns: 1fr; }
+      .studio-display { order: -1; }
+      .spec-table { grid-template-columns: repeat(2, 1fr); }
+      .dual-card-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .app-wrapper { padding: 1rem 0.85rem 2.5rem; gap: 1.25rem; }
+      header { top: 0.75rem; padding: 0.65rem 1rem; }
+      .panel { padding: 1.1rem; }
+      .theme-chips { grid-template-columns: repeat(2, 1fr); }
+      .spec-table { grid-template-columns: 1fr; }
+      .comparison-grid { grid-template-columns: 1fr; }
+      .btn-row { flex-direction: column; }
+      .btn { width: 100%; padding: 0.85rem; }
+      input[type="text"] { font-size: 16px; }
+      .viewport, .drop-box { width: 100%; max-width: 100%; aspect-ratio: 1/1; height: auto; }
+      .viewport canvas, .decode-canvas { width: 100%; height: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+  <canvas id="warp-canvas"></canvas>
+
+  <div class="app-wrapper">
+    <!-- HEADER -->
+    <header>
+      <a href="#" class="brand-morph" onclick="event.preventDefault();">
+        <span>ne</span><span class="morph-expand">ural&nbsp;</span><span>w</span><span class="morph-expand">ave&nbsp;</span><span>code</span>
+      </a>
+      <div class="header-actions">
+        <a href="https://github.com/tturkayy" target="_blank" class="theme-icon-btn" title="GitHub"><i class="fab fa-github"></i></a>
+        <button class="theme-icon-btn" id="themeCycleBtn" aria-label="toggle theme">
+          <i id="themeIcon" class="fas fa-sun"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- 1. MERKEZ KONTROL PANELİ (STUDIO INTERACTION) -->
+    <main class="panel">
+      <div class="nav-bar">
+        <div class="nav-tabs">
+          <button class="tab-btn active" id="tabEncBtn" onclick="switchMode('encode')">encode</button>
+          <button class="tab-btn" id="tabDecBtn" onclick="switchMode('decode')">decode</button>
+        </div>
+        <div class="hw-badge">
+          <div class="dot" id="hwDot"></div>
+          <span id="hwLabel">standby</span>
+        </div>
+      </div>
+
+      <!-- ENCODE VIEW -->
+      <div class="view-container active" id="encodeView">
+        <div class="studio-grid">
+          <div class="studio-controls">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <input type="text" id="payloadInput" value="" placeholder="enter link or message..." oninput="onPayloadChange()">
+              <div class="meta-row">
+                <span>continuous 16-apsk stream</span>
+                <span id="byteCounter">0 / 39 b</span>
+              </div>
+            </div>
+
+            <div class="themes-bar">
+              <span class="themes-title">wave colorway</span>
+              <div class="theme-chips" id="themeChipsContainer"></div>
+            </div>
+
+            <div class="btn-row">
+              <button class="btn btn-primary" id="btnGen" onclick="renderEncodeCanvas()">
+                <i class="fas fa-bolt"></i> generate wave
+              </button>
+              <button class="btn btn-subtle" onclick="downloadExport()">
+                <i class="fas fa-download"></i> save png
+              </button>
+            </div>
+          </div>
+
+          <div class="studio-display">
+            <div class="viewport" id="viewportBox" title="click to download png" onclick="downloadExport()">
+              <canvas id="encodeCanvas" width="360" height="360"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DECODE VIEW -->
+      <div class="view-container" id="decodeView">
+        <input type="file" id="filePicker" accept="image/*" style="display:none;" onchange="onFileSelected(event)">
+
+        <div class="studio-grid">
+          <div class="studio-controls">
+            <button class="btn btn-primary" onclick="runDecode()" style="padding:1rem;">
+              <i class="fas fa-wave-square"></i> decode carrier signal
+            </button>
+
+            <div class="decode-result-box">
+              <div class="result-header">
+                <span style="font-family:var(--mono); font-size:0.72rem; color:var(--text-muted); text-transform:lowercase;">decoded payload</span>
+                <span class="detected-badge" id="detectedVersionBadge">ready</span>
+              </div>
+              <div class="readout-wrapper">
+                <div class="readout" id="decodeReadout"></div>
+                <button class="copy-btn" id="copyBtn" onclick="copyDecodedText()"><i class="fas fa-copy"></i> copy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="studio-display">
+            <div class="drop-box" id="dropArea" onclick="document.getElementById('filePicker').click()">
+              <div class="drop-box-icon" id="dropBoxIcon"><i class="fas fa-arrow-up-from-bracket"></i></div>
+              <div class="drop-box-title" id="dropBoxTitle">load wave carrier</div>
+              <div class="drop-box-hint" id="dropBoxHint">
+                drag & drop image here, paste from clipboard,<br>or tap to browse
+              </div>
+              <canvas class="decode-canvas" id="decodeCanvas" width="360" height="360"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 2. MERKEZ ALT TEKNİK PANEL (SYSTEM ARCHITECTURE WHITEPAPER) -->
+    <section class="panel architecture-container">
+      <div class="arch-header-block">
+        <div class="arch-title"><i class="fas fa-microchip"></i> system architecture</div>
+        <p class="arch-lead">
+          continuous 2d optical wave stream carrier with 1d neural demodulation and galois field reed-solomon forward error correction.
+        </p>
+      </div>
+
+      <!-- END-TO-END PIPELINE OVERVIEW DIAGRAM -->
+      <div class="tech-card">
+        <div class="tech-card-title"><i class="fas fa-diagram-project" style="color:var(--accent);"></i> end-to-end signal pipeline</div>
+        <img src="diagram_overview.png" alt="end to end signal pipeline" class="diagram-img diagram-dark">
+        <img src="diagram_overview_sepia.png" alt="end to end signal pipeline" class="diagram-img diagram-sepia">
+      </div>
+
+      <!-- SPECIFICATION MATRIX (4-COLUMN) -->
+      <div class="spec-table">
+        <div class="spec-row"><span>scheme</span><span>16-apsk continuous</span></div>
+        <div class="spec-row"><span>codec</span><span>rs(48, 40) gf-256</span></div>
+        <div class="spec-row"><span>max payload</span><span>39 bytes</span></div>
+        <div class="spec-row"><span>parity budget</span><span>8 bytes (16.7%)</span></div>
+        <div class="spec-row"><span>symbol grid</span><span>8 lines × 12 sym</span></div>
+        <div class="spec-row"><span>symbol length</span><span>24 px / symbol</span></div>
+        <div class="spec-row"><span>carrier window</span><span>360×360 px square</span></div>
+        <div class="spec-row"><span>inference ep</span><span id="epTypeLabel">webgpu / wasm</span></div>
+      </div>
+
+      <!-- 1. TRANSMITTER & 2. RECEIVER CARDS -->
+      <div class="dual-card-grid">
+        <div class="tech-card">
+          <div class="tech-card-title"><i class="fas fa-satellite-dish" style="color:var(--accent);"></i> 1. transmitter pipeline</div>
+          <p class="tech-card-desc">
+            utf-8 payload is padded and encoded through an rs(48,40) codec. the resulting 384-bit stream is mapped into 96 16-apsk symbols where each 4-bit block determines discrete amplitude and phase.
+          </p>
+          <img src="diagram_tx.png" alt="transmitter pipeline" class="diagram-img diagram-dark">
+          <img src="diagram_tx_sepia.png" alt="transmitter pipeline" class="diagram-img diagram-sepia">
+          <img src="diagram_modulation.png" alt="modulation constellation" class="diagram-img diagram-dark">
+          <img src="diagram_modulation_sepia.png" alt="modulation constellation" class="diagram-img diagram-sepia">
+        </div>
+
+        <div class="tech-card">
+          <div class="tech-card-title"><i class="fas fa-wave-square" style="color:var(--accent);"></i> 2. receiver pipeline</div>
+          <p class="tech-card-desc">
+            sub-pixel weighted centroid slicing tracks wave nominal centers with sub-pixel resolution. normalized 24-point segments are classified via onnx runtime web into symbols and reconstructed into text.
+          </p>
+          <img src="diagram_rx.png" alt="receiver pipeline" class="diagram-img diagram-dark">
+          <img src="diagram_rx_sepia.png" alt="receiver pipeline" class="diagram-img diagram-sepia">
+
+          <div class="tech-card-title" style="margin-top:0.5rem;"><i class="fas fa-shield-halved" style="color:var(--accent);"></i> error correction</div>
+          <p class="tech-card-desc">
+            constructed over gf(256) using irreducible polynomial p(x) = x^8 + x^4 + x^3 + x^2 + 1 (0x11d). with 8 parity bytes, berlekamp-massey and forney algorithms guarantee exact recovery from up to 4 corrupted bytes (8 whole symbols).
+          </p>
+        </div>
+      </div>
+
+      <!-- 3. CENTROID VS THRESHOLD -->
+      <div class="tech-card">
+        <div class="tech-card-title"><i class="fas fa-brain" style="color:var(--accent);"></i> 3. centroid + 1d cnn advantage</div>
+        <p class="tech-card-desc">
+          replaces fragile binary pixel thresholding with continuous sub-pixel energy localization and deep convolutional classification.
+        </p>
+        <div class="comparison-grid">
+          <div class="comp-card">
+            <span class="comp-card-title">weighted centroid</span>
+            <span class="comp-card-body">sub-pixel skeleton tracking; invariant to stroke width, antialiasing bleed, and color contrast.</span>
+          </div>
+          <div class="comp-card">
+            <span class="comp-card-title">1d cnn classifier</span>
+            <span class="comp-card-body">resilient to optical distortion, lens curvature, perspective skew, and harmonic noise.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="page-footer">
+      newcode protocol • continuous optical wave modulation • <a href="https://tturkayy.github.io/" target="_blank" rel="noopener noreferrer" class="footer-author">türkay yıldırım</a>
+    </footer>
+  </div>
+
+  <script>
+    // 1. THEME & MESH CANVAS
+    const themeBtn = document.getElementById('themeCycleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    function applyTheme(th) {
+      if (th === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeIcon.className = 'fas fa-moon';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.className = 'fas fa-sun';
+      }
+      localStorage.setItem('theme', th);
+    }
+    themeBtn.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      applyTheme(isDark ? 'sepia' : 'dark');
+    });
+
+    const wCanvas = document.getElementById('warp-canvas');
+    const wCtx = wCanvas.getContext('2d');
+    let wW, wH, mX = -9999, mY = -9999, tmX = -9999, tmY = -9999;
+    window.addEventListener('mousemove', e => { tmX = e.clientX; tmY = e.clientY; });
+    window.addEventListener('mouseleave', () => { tmX = -9999; tmY = -9999; });
+
+    window.addEventListener('touchmove', e => {
+      if (e.touches.length > 0) {
+        tmX = e.touches[0].clientX;
+        tmY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+    window.addEventListener('touchend', () => { tmX = -9999; tmY = -9999; });
+
+    function resizeWarp() { wW = wCanvas.width = window.innerWidth; wH = wCanvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeWarp);
+    resizeWarp();
+
+    function drawWarp() {
+      wCtx.clearRect(0, 0, wW, wH);
+      const stroke = getComputedStyle(document.documentElement).getPropertyValue('--mesh-color').trim() || 'rgba(0,0,0,0.05)';
+      wCtx.strokeStyle = stroke;
+      wCtx.lineWidth = 1;
+      mX += (tmX - mX) * 0.08;
+      mY += (tmY - mY) * 0.08;
+      const step = 48, cols = Math.floor(wW / step) + 4, rows = Math.floor(wH / step) + 4;
+      const rad = 360, maxShift = 28;
+
+      function warpPt(px, py) {
+        const dx = px - mX, dy = py - mY, dSq = dx * dx + dy * dy;
+        if (dSq < rad * rad) {
+          const f = Math.exp(-dSq / (2 * Math.pow(rad * 0.38, 2)));
+          return { x: px - dx * (f * maxShift / rad), y: py - dy * (f * maxShift / rad) };
+        }
+        return { x: px, y: py };
+      }
+
+      const grid = [];
+      for (let r = 0; r <= rows; r++) {
+        grid[r] = [];
+        for (let c = 0; c <= cols; c++) grid[r][c] = warpPt((c - 2) * step, (r - 2) * step);
+      }
+      for (let r = 0; r <= rows; r++) {
+        wCtx.beginPath();
+        for (let c = 0; c <= cols; c++) {
+          const p = grid[r][c];
+          if (c === 0) wCtx.moveTo(p.x, p.y); else wCtx.lineTo(p.x, p.y);
+        }
+        wCtx.stroke();
+      }
+      for (let c = 0; c <= cols; c++) {
+        wCtx.beginPath();
+        for (let r = 0; r <= rows; r++) {
+          const p = grid[r][c];
+          if (r === 0) wCtx.moveTo(p.x, p.y); else wCtx.lineTo(p.x, p.y);
+        }
+        wCtx.stroke();
+      }
+      requestAnimationFrame(drawWarp);
+    }
+    drawWarp();
+
+    // 2. REED-SOLOMON (GF-256)
+    const GF_EXP = new Uint8Array(512), GF_LOG = new Uint8Array(256);
+    (function initGalois() {
+      let x = 1;
+      for (let i = 0; i < 255; i++) {
+        GF_EXP[i] = x; GF_LOG[x] = i;
+        x <<= 1;
+        if (x & 256) x ^= 0x11d;
+      }
+      for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+    })();
+
+    function gfMul(x, y) { return (x === 0 || y === 0) ? 0 : GF_EXP[GF_LOG[x] + GF_LOG[y]]; }
+    function gfPolyMul(p, q) {
+      const r = new Uint8Array(p.length + q.length - 1);
+      for (let j = 0; j < q.length; j++) {
+        for (let i = 0; i < p.length; i++) r[i + j] ^= gfMul(p[i], q[j]);
+      }
+      return r;
+    }
+    function getRSGen(n) {
+      let g = new Uint8Array([1]);
+      for (let i = 0; i < n; i++) g = gfPolyMul(g, new Uint8Array([1, GF_EXP[i]]));
+      return g;
+    }
+    function rsEncode(msg, nParity) {
+      const gen = getRSGen(nParity);
+      const out = new Uint8Array(msg.length + nParity);
+      out.set(msg);
+      for (let i = 0; i < msg.length; i++) {
+        const c = out[i];
+        if (c !== 0) {
+          for (let j = 0; j < gen.length; j++) out[i + j] ^= gfMul(gen[j], c);
+        }
+      }
+      out.set(msg);
+      return out;
+    }
+    function rsDecode(msg, nParity) {
+      const syn = new Uint8Array(nParity);
+      let hasErr = false;
+      for (let i = 0; i < nParity; i++) {
+        let s = 0;
+        for (let j = 0; j < msg.length; j++) s = msg[j] ^ (s === 0 ? 0 : gfMul(GF_EXP[i], s));
+        syn[i] = s;
+        if (s !== 0) hasErr = true;
+      }
+      const k = msg.length - nParity;
+      if (!hasErr) return msg.subarray(0, k);
+
+      let C = new Uint8Array([1]), B = new Uint8Array([1]), L = 0, m = 1, b = 1;
+      for (let n = 0; n < nParity; n++) {
+        let d = syn[n];
+        for (let i = 1; i <= L; i++) d ^= gfMul(C[i], syn[n - i]);
+        if (d === 0) m++;
+        else if (2 * L <= n) {
+          const T = new Uint8Array(C);
+          const sc = gfMul(d, GF_EXP[255 - GF_LOG[b]]);
+          const sb = new Uint8Array(B.length + m);
+          for (let ki = 0; ki < B.length; ki++) sb[ki + m] = gfMul(B[ki], sc);
+          const nc = new Uint8Array(Math.max(C.length, sb.length));
+          for (let ki = 0; ki < C.length; ki++) nc[ki] ^= C[ki];
+          for (let ki = 0; ki < sb.length; ki++) nc[ki] ^= sb[ki];
+          C = nc; L = n + 1 - L; B = T; b = d; m = 1;
+        } else {
+          const sc = gfMul(d, GF_EXP[255 - GF_LOG[b]]);
+          const sb = new Uint8Array(B.length + m);
+          for (let ki = 0; ki < B.length; ki++) sb[ki + m] = gfMul(B[ki], sc);
+          const nc = new Uint8Array(Math.max(C.length, sb.length));
+          for (let ki = 0; ki < C.length; ki++) nc[ki] ^= C[ki];
+          for (let ki = 0; ki < sb.length; ki++) nc[ki] ^= sb[ki];
+          C = nc; m++;
+        }
+      }
+      const errPos = [];
+      for (let i = 0; i < msg.length; i++) {
+        const X = GF_EXP[(255 - i) % 255];
+        let sum = 0;
+        for (let j = 0; j < C.length; j++) sum ^= gfMul(C[j], GF_EXP[(GF_LOG[X] * j) % 255]);
+        if (sum === 0) errPos.push(msg.length - 1 - i);
+      }
+      if (errPos.length !== L) return null;
+      const res = new Uint8Array(msg);
+      for (let p of errPos) {
+        let XiInv = GF_EXP[p % 255], num = 0, den = 0;
+        for (let i = 0; i < nParity; i++) num ^= gfMul(syn[i], GF_EXP[(GF_LOG[XiInv] * i) % 255]);
+        for (let j = 1; j < C.length; j += 2) den ^= gfMul(C[j], GF_EXP[(GF_LOG[XiInv] * (j - 1)) % 255]);
+        if (den !== 0) res[p] ^= gfMul(num, GF_EXP[255 - GF_LOG[den]]);
+      }
+      return res.subarray(0, k);
+    }
+
+    // 3. PROTOCOL CONFIGURATION
+    const PROTOCOL = {
+      name: "newcode",
+      onnx: "./newcode_v1.onnx",
+      lines: 8,
+      symLine: 12,
+      symLen: 24,
+      totalSym: 96,
+      margin: 36,
+      padX: 10,
+      totalBytes: 48,
+      nParity: 8,
+      maxPayload: 39,
+      classes: 16,
+      normDiv: 12.0
+    };
+
+    let session = null;
+
+    async function loadEngine() {
+      if (session) return session;
+      const dot = document.getElementById('hwDot');
+      const lbl = document.getElementById('hwLabel');
+      try {
+        session = await ort.InferenceSession.create(PROTOCOL.onnx, { executionProviders: ['webgpu', 'wasm'] });
+        dot.className = 'dot on'; lbl.innerText = 'webgpu';
+      } catch (err) {
+        session = await ort.InferenceSession.create(PROTOCOL.onnx, { executionProviders: ['wasm'] });
+        dot.className = 'dot on'; lbl.innerText = 'wasm';
+      }
+      return session;
+    }
+
+    // 4. COLORWAY PRESETS
+    const THEMES = [
+      { id: "joy", name: "joy", bg: "#000000", wave: "#ffffff" },
+      { id: "crt", name: "amber crt", bg: "#0d0a02", wave: "#f59e0b" },
+      { id: "matrix", name: "matrix", bg: "#021c14", wave: "#34d399" },
+      { id: "cyber", name: "cyberpunk", bg: "#080612", wave: "#06b6d4" },
+      { id: "crimson", name: "crimson", bg: "#1a0508", wave: "#f43f5e" },
+      { id: "nord", name: "nord", bg: "#0f172a", wave: "#93c5fd" },
+      { id: "sepia", name: "sepia", bg: "#eae3d5", wave: "#3c2a1e" },
+      { id: "paper", name: "paper", bg: "#ffffff", wave: "#090a0f" }
+    ];
+
+    let selectedTheme = THEMES[0];
+
+    function initThemeChips() {
+      const container = document.getElementById('themeChipsContainer');
+      container.innerHTML = THEMES.map((th, idx) => `
+        <div class="theme-chip ${idx === 0 ? 'active' : ''}"
+             style="background:${th.bg}; color:${th.wave}; border-color:${th.wave};"
+             onclick="applyWaveTheme('${th.id}')">
+          <span>${th.name}</span>
+        </div>
+      `).join('');
+    }
+
+    function applyWaveTheme(id) {
+      selectedTheme = THEMES.find(t => t.id === id) || THEMES[0];
+      const chips = document.querySelectorAll('.theme-chip');
+      chips.forEach((c, idx) => {
+        c.className = THEMES[idx].id === id ? 'theme-chip active' : 'theme-chip';
+      });
+      // Viewport arka planını seçilen temaya dinamik eşitle
+      const vp = document.getElementById('viewportBox');
+      if (vp) vp.style.backgroundColor = selectedTheme.bg;
+      renderEncodeCanvas();
+    }
+
+    // 5. ENCODER ENGINE
+    function switchMode(m) {
+      document.getElementById('tabEncBtn').className = m === 'encode' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('tabDecBtn').className = m === 'decode' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('encodeView').className = m === 'encode' ? 'view-container active' : 'view-container';
+      document.getElementById('decodeView').className = m === 'decode' ? 'view-container active' : 'view-container';
+    }
+
+    function onPayloadChange() {
+      const input = document.getElementById('payloadInput');
+      const maxB = PROTOCOL.maxPayload;
+      const enc = new TextEncoder();
+      let txt = input.value;
+      while (enc.encode(txt).length > maxB) txt = txt.slice(0, -1);
+      input.value = txt;
+      document.getElementById('byteCounter').innerText = `${enc.encode(txt).length} / ${maxB} b`;
+    }
+
+    function renderEncodeCanvas() {
+      const cfg = PROTOCOL;
+      const txt = document.getElementById('payloadInput').value;
+      const raw = new TextEncoder().encode(txt).subarray(0, cfg.maxPayload);
+      const kBytes = cfg.totalBytes - cfg.nParity;
+
+      const payload = new Uint8Array(kBytes);
+      payload[0] = raw.length;
+      payload.set(raw, 1);
+      for (let i = 1 + raw.length; i < kBytes; i++) payload[i] = 0x20;
+
+      const codeword = rsEncode(payload, cfg.nParity);
+      const canvas = document.getElementById('encodeCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      const scale = 2;
+      const big = document.createElement('canvas');
+      big.width = 360 * scale; big.height = 360 * scale;
+      const bCtx = big.getContext('2d');
+      bCtx.imageSmoothingEnabled = false;
+
+      bCtx.fillStyle = selectedTheme.bg;
+      bCtx.fillRect(0, 0, big.width, big.height);
+      bCtx.strokeStyle = selectedTheme.wave;
+      bCtx.lineWidth = 1.9 * scale;
+      bCtx.lineCap = "round";
+
+      const usableW = 360 - 2 * cfg.margin;
+      const lineStep = (360 - 2 * cfg.margin) / (cfg.lines + 1);
+      const pxPerSym = (usableW - 2 * cfg.padX) / cfg.symLine;
+
+      const bits = [];
+      for (let b of codeword) { for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1); }
+      const ampMap = { "0,0": 3.0, "0,1": 5.0, "1,1": 7.0, "1,0": 9.0 };
+      const phMap = { "0,0": 0.0, "0,1": Math.PI / 2.0, "1,1": Math.PI, "1,0": 3.0 * Math.PI / 2.0 };
+      let bitIdx = 0;
+
+      for (let l = 0; l < cfg.lines; l++) {
+        const yC = (cfg.margin + (l + 1) * lineStep) * scale;
+        bCtx.beginPath();
+        bCtx.moveTo(cfg.margin * scale, yC);
+        bCtx.lineTo((cfg.margin + cfg.padX) * scale, yC);
+
+        for (let s = 0; s < cfg.symLine; s++) {
+          const a = ampMap[`${bits[bitIdx]},${bits[bitIdx+1]}`] * scale;
+          const ph = phMap[`${bits[bitIdx+2]},${bits[bitIdx+3]}`];
+          bitIdx += 4;
+          const xs = (cfg.margin + cfg.padX + s * pxPerSym) * scale;
+          const xe = (cfg.margin + cfg.padX + (s + 1) * pxPerSym) * scale;
+          const n = Math.round(xe - xs);
+          for (let p = 0; p <= n; p++) {
+            bCtx.lineTo(xs + p, yC - Math.sin((2 * Math.PI * p) / n + ph) * a);
+          }
+        }
+        bCtx.lineTo((cfg.margin + usableW) * scale, yC);
+        bCtx.stroke();
+      }
+
+      ctx.drawImage(big, 0, 0, 360, 360);
+
+      const st = 17, m = 8;
+      ctx.fillStyle = selectedTheme.wave; ctx.strokeStyle = selectedTheme.wave; ctx.lineWidth = 2;
+      ctx.fillRect(m, m, st, st);
+      ctx.strokeRect(360 - m - st, m, st, st);
+      ctx.strokeRect(m, 360 - m - st, st, st);
+      ctx.fillRect(m + 4, 360 - m - st + 4, st - 8, st - 8);
+      ctx.beginPath();
+      ctx.ellipse(360 - m - st / 2, 360 - m - st / 2, st / 2, st / 2, 0, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    function downloadExport() {
+      const a = document.createElement('a');
+      a.download = `newcode_${selectedTheme.id}.png`;
+      a.href = document.getElementById('encodeCanvas').toDataURL();
+      a.click();
+    }
+
+    // 6. DECODER WORKFLOW
+    let loadedImageElement = null;
+
+    function applyLoadedImage(img) {
+      loadedImageElement = img;
+      const cvs = document.getElementById('decodeCanvas');
+      const ctx = cvs.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, 360, 360);
+
+      document.getElementById('dropBoxIcon').style.display = 'none';
+      document.getElementById('dropBoxTitle').style.display = 'none';
+      document.getElementById('dropBoxHint').style.display = 'none';
+      cvs.className = 'decode-canvas loaded';
+      document.getElementById('dropArea').style.border = '1px solid var(--border)';
+
+      document.getElementById('decodeReadout').innerText = "";
+      document.getElementById('detectedVersionBadge').innerText = "ready";
+      document.getElementById('copyBtn').style.display = "none";
+    }
+
+    function onFileSelected(e) {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        const img = new Image();
+        img.onload = () => applyLoadedImage(img);
+        img.src = ev.target.result;
+      };
+      r.readAsDataURL(f);
+    }
+
+    function extractGeometrySlices(ctx, cfg) {
+      const imgData = ctx.getImageData(0, 0, 360, 360).data;
+      const gray = new Float32Array(360 * 360);
+
+      for (let i = 0; i < imgData.length; i += 4) {
+        gray[i / 4] = 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+      }
+
+      const bgLum = (gray[2 * 360 + 2] + gray[2 * 360 + 357] + gray[357 * 360 + 2]) / 3.0;
+      const fgLum = (gray[15 * 360 + 15] + gray[15 * 360 + 344]) / 2.0;
+      const invert = bgLum > fgLum;
+
+      if (invert) {
+        for (let i = 0; i < gray.length; i++) {
+          gray[i] = 255.0 - gray[i];
+        }
+      }
+
+      const usableW = 360 - 2 * cfg.margin;
+      const lineStep = (360 - 2 * cfg.margin) / (cfg.lines + 1);
+      const pxPerSym = (usableW - 2 * cfg.padX) / cfg.symLine;
+      const slices = new Float32Array(cfg.totalSym * cfg.symLen);
+      let sliceIdx = 0;
+
+      for (let l = 0; l < cfg.lines; l++) {
+        const nomY = Math.round(cfg.margin + (l + 1) * lineStep);
+
+        for (let s = 0; s < cfg.symLine; s++) {
+          const xs = Math.round(cfg.margin + cfg.padX + s * pxPerSym);
+          const xe = Math.round(cfg.margin + cfg.padX + (s + 1) * pxPerSym);
+
+          const rawCentroids = [];
+          for (let x = xs; x < xe; x++) {
+            let colMin = 255.0;
+            for (let dy = -12; dy <= 12; dy++) {
+              const val = gray[(nomY + dy) * 360 + x];
+              if (val < colMin) colMin = val;
+            }
+
+            let num = 0, den = 0;
+            for (let dy = -12; dy <= 12; dy++) {
+              const val = gray[(nomY + dy) * 360 + x];
+              const diff = Math.max(0, val - colMin - 10.0);
+              const w = diff * diff;
+              num += w * dy;
+              den += w;
+            }
+            rawCentroids.push(den > 1e-4 ? -(num / den) : 0.0);
+          }
+
+          const sampled = new Float32Array(cfg.symLen);
+          let sum = 0;
+          const rawCount = rawCentroids.length;
+          for (let i = 0; i < cfg.symLen; i++) {
+            const p = (i / (cfg.symLen - 1)) * (rawCount - 1);
+            const p0 = Math.floor(p);
+            const p1 = Math.min(rawCount - 1, p0 + 1);
+            const t = p - p0;
+            const v = rawCentroids[p0] * (1 - t) + rawCentroids[p1] * t;
+            sampled[i] = v;
+            sum += v;
+          }
+
+          const mean = sum / cfg.symLen;
+          for (let i = 0; i < cfg.symLen; i++) {
+            slices[sliceIdx * cfg.symLen + i] = (sampled[i] - mean) / cfg.normDiv;
+          }
+          sliceIdx++;
+        }
+      }
+      return slices;
+    }
+
+    async function runDecode() {
+      if (!loadedImageElement) return;
+      const readout = document.getElementById('decodeReadout');
+      const badge = document.getElementById('detectedVersionBadge');
+      const copyBtn = document.getElementById('copyBtn');
+      badge.innerText = "decoding...";
+
+      try {
+        const engine = await loadEngine();
+        const cvs = document.getElementById('decodeCanvas');
+        const slices = extractGeometrySlices(cvs.getContext('2d'), PROTOCOL);
+
+        const tensor = new ort.Tensor('float32', slices, [PROTOCOL.totalSym, 1, PROTOCOL.symLen]);
+        const res = await engine.run({ input: tensor });
+        const logits = res.output.data;
+
+        const preds = [];
+        for (let i = 0; i < PROTOCOL.totalSym; i++) {
+          let maxV = -Infinity, best = 0;
+          for (let c = 0; c < PROTOCOL.classes; c++) {
+            const sc = logits[i * PROTOCOL.classes + c];
+            if (sc > maxV) { maxV = sc; best = c; }
+          }
+          preds.push(best);
+        }
+
+        const bits = [];
+        const aL = [[0,0], [0,1], [1,1], [1,0]], pL = [[0,0], [0,1], [1,1], [1,0]];
+        for (let c of preds) bits.push(...aL[Math.floor(c / 4)], ...pL[c % 4]);
+
+        let codeword = new Uint8Array(PROTOCOL.totalBytes);
+        for (let i = 0; i < PROTOCOL.totalBytes; i++) {
+          let b = 0;
+          for (let k = 0; k < 8; k++) b = (b << 1) | bits[i * 8 + k];
+          codeword[i] = b;
+        }
+
+        const decoded = rsDecode(codeword, PROTOCOL.nParity);
+        if (decoded) {
+          const len = decoded[0];
+          if (len > 0 && len <= PROTOCOL.maxPayload) {
+            const txt = new TextDecoder('utf-8').decode(decoded.subarray(1, 1 + len));
+            badge.innerText = "locked";
+            readout.innerText = txt;
+            copyBtn.style.display = "inline-block";
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('[newcode] decode error:', e);
+      }
+
+      badge.innerText = "failed";
+      readout.innerText = "error: parity exhausted or signal not recognized.";
+      copyBtn.style.display = "none";
+    }
+
+    function copyDecodedText() {
+      const txt = document.getElementById('decodeReadout').innerText;
+      if (txt) {
+        navigator.clipboard.writeText(txt);
+        const btn = document.getElementById('copyBtn');
+        btn.innerHTML = '<i class="fas fa-check"></i> copied!';
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> copy'; }, 2000);
+      }
+    }
+
+    const dropArea = document.getElementById('dropArea');
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropArea.addEventListener(evt, e => {
+        e.preventDefault();
+        dropArea.classList.add('dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      dropArea.addEventListener(evt, e => {
+        e.preventDefault();
+        dropArea.classList.remove('dragover');
+      });
+    });
+    dropArea.addEventListener('drop', e => {
+      if (e.dataTransfer.files[0]) {
+        const r = new FileReader();
+        r.onload = ev => {
+          const img = new Image();
+          img.onload = () => applyLoadedImage(img);
+          img.src = ev.target.result;
+        };
+        r.readAsDataURL(e.dataTransfer.files[0]);
+      }
+    });
+
+    window.addEventListener('paste', e => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (let it of items) {
+        if (it.type.includes('image')) {
+          const f = it.getAsFile();
+          const r = new FileReader();
+          r.onload = ev => {
+            const img = new Image();
+            img.onload = () => {
+              switchMode('decode');
+              applyLoadedImage(img);
+            };
+            img.src = ev.target.result;
+          };
+          r.readAsDataURL(f);
+          break;
+        }
+      }
+    });
+
+    window.onload = async () => {
+      initThemeChips();
+      onPayloadChange();
+      renderEncodeCanvas();
+      await loadEngine();
+    };
+  </script>
+</body>
+</html>
