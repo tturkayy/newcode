@@ -138,7 +138,7 @@
       vertical-align: bottom;
       color: var(--accent);
       animation: morphWord 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    } 
+    }
     @keyframes morphWord {
       0%, 15%, 85%, 100% { max-width: 0; opacity: 0; transform: translateY(1px); }
       35%, 65% { max-width: 80px; opacity: 1; transform: translateY(0); }
@@ -223,7 +223,6 @@
     }
     .dot.on { background: #10b981; box-shadow: 0 0 8px #10b981; }
 
-    /* STUDIO 2-COLUMN LAYOUT */
     .studio-grid {
       display: grid;
       grid-template-columns: 1fr 380px;
@@ -321,7 +320,6 @@
       outline-offset: 1px;
     }
 
-    /* THEME DYNAMIC VIEWPORT */
     .viewport {
       width: 360px;
       height: 360px;
@@ -492,7 +490,6 @@
     }
     .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
 
-    /* ARCHITECTURE SECTION */
     .architecture-container {
       display: flex;
       flex-direction: column;
@@ -553,7 +550,7 @@
       display: block;
     }
     .diagram-dark { display: none; }
-    .diagram-sepia { display: block; background: #f5f2eb; }
+    .diagram-sepia { display: block; background: #eae3d5; }
 
     [data-theme="dark"] .diagram-dark { display: block; background: #0b0f19; }
     [data-theme="dark"] .diagram-sepia { display: none; }
@@ -681,7 +678,7 @@
       </div>
     </header>
 
-    <!-- 1. MERKEZ KONTROL PANELİ (STUDIO INTERACTION) -->
+    <!-- 1. STUDIO PANEL -->
     <main class="panel">
       <div class="nav-bar">
         <div class="nav-tabs">
@@ -765,7 +762,7 @@
       </div>
     </main>
 
-    <!-- 2. MERKEZ ALT TEKNİK PANEL (SYSTEM ARCHITECTURE WHITEPAPER) -->
+    <!-- 2. ARCHITECTURE WHITEPAPER -->
     <section class="panel architecture-container">
       <div class="arch-header-block">
         <div class="arch-title"><i class="fas fa-microchip"></i> system architecture</div>
@@ -774,14 +771,14 @@
         </p>
       </div>
 
-      <!-- END-TO-END PIPELINE OVERVIEW DIAGRAM -->
+      <!-- END-TO-END PIPELINE (figs/) -->
       <div class="tech-card">
         <div class="tech-card-title"><i class="fas fa-diagram-project" style="color:var(--accent);"></i> end-to-end signal pipeline</div>
-        <img src="diagram_overview.png" alt="end to end signal pipeline" class="diagram-img diagram-dark">
-        <img src="diagram_overview_sepia.png" alt="end to end signal pipeline" class="diagram-img diagram-sepia">
+        <img src="figs/diagram_overview.png" alt="end to end signal pipeline" class="diagram-img diagram-dark">
+        <img src="figs/diagram_overview_sepia.png" alt="end to end signal pipeline" class="diagram-img diagram-sepia">
       </div>
 
-      <!-- SPECIFICATION MATRIX (4-COLUMN) -->
+      <!-- SPECIFICATION MATRIX -->
       <div class="spec-table">
         <div class="spec-row"><span>scheme</span><span>16-apsk continuous</span></div>
         <div class="spec-row"><span>codec</span><span>rs(48, 40) gf-256</span></div>
@@ -793,17 +790,17 @@
         <div class="spec-row"><span>inference ep</span><span id="epTypeLabel">webgpu / wasm</span></div>
       </div>
 
-      <!-- 1. TRANSMITTER & 2. RECEIVER CARDS -->
+      <!-- 1. TRANSMITTER & 2. RECEIVER (figs/) -->
       <div class="dual-card-grid">
         <div class="tech-card">
           <div class="tech-card-title"><i class="fas fa-satellite-dish" style="color:var(--accent);"></i> 1. transmitter pipeline</div>
           <p class="tech-card-desc">
             utf-8 payload is padded and encoded through an rs(48,40) codec. the resulting 384-bit stream is mapped into 96 16-apsk symbols where each 4-bit block determines discrete amplitude and phase.
           </p>
-          <img src="diagram_tx.png" alt="transmitter pipeline" class="diagram-img diagram-dark">
-          <img src="diagram_tx_sepia.png" alt="transmitter pipeline" class="diagram-img diagram-sepia">
-          <img src="diagram_modulation.png" alt="modulation constellation" class="diagram-img diagram-dark">
-          <img src="diagram_modulation_sepia.png" alt="modulation constellation" class="diagram-img diagram-sepia">
+          <img src="figs/diagram_tx.png" alt="transmitter pipeline" class="diagram-img diagram-dark">
+          <img src="figs/diagram_tx_sepia.png" alt="transmitter pipeline" class="diagram-img diagram-sepia">
+          <img src="figs/diagram_modulation.png" alt="modulation constellation" class="diagram-img diagram-dark">
+          <img src="figs/diagram_modulation_sepia.png" alt="modulation constellation" class="diagram-img diagram-sepia">
         </div>
 
         <div class="tech-card">
@@ -811,9 +808,9 @@
           <p class="tech-card-desc">
             sub-pixel weighted centroid slicing tracks wave nominal centers with sub-pixel resolution. normalized 24-point segments are classified via onnx runtime web into symbols and reconstructed into text.
           </p>
-          <img src="diagram_rx.png" alt="receiver pipeline" class="diagram-img diagram-dark">
-          <img src="diagram_rx_sepia.png" alt="receiver pipeline" class="diagram-img diagram-sepia">
-
+          <img src="figs/diagram_rx.png" alt="receiver pipeline" class="diagram-img diagram-dark">
+          <img src="figs/diagram_rx_sepia.png" alt="receiver pipeline" class="diagram-img diagram-sepia">
+          
           <div class="tech-card-title" style="margin-top:0.5rem;"><i class="fas fa-shield-halved" style="color:var(--accent);"></i> error correction</div>
           <p class="tech-card-desc">
             constructed over gf(256) using irreducible polynomial p(x) = x^8 + x^4 + x^3 + x^2 + 1 (0x11d). with 8 parity bytes, berlekamp-massey and forney algorithms guarantee exact recovery from up to 4 corrupted bytes (8 whole symbols).
@@ -870,7 +867,7 @@
     let wW, wH, mX = -9999, mY = -9999, tmX = -9999, tmY = -9999;
     window.addEventListener('mousemove', e => { tmX = e.clientX; tmY = e.clientY; });
     window.addEventListener('mouseleave', () => { tmX = -9999; tmY = -9999; });
-
+    
     window.addEventListener('touchmove', e => {
       if (e.touches.length > 0) {
         tmX = e.touches[0].clientX;
@@ -1069,8 +1066,8 @@
     function initThemeChips() {
       const container = document.getElementById('themeChipsContainer');
       container.innerHTML = THEMES.map((th, idx) => `
-        <div class="theme-chip ${idx === 0 ? 'active' : ''}"
-             style="background:${th.bg}; color:${th.wave}; border-color:${th.wave};"
+        <div class="theme-chip ${idx === 0 ? 'active' : ''}" 
+             style="background:${th.bg}; color:${th.wave}; border-color:${th.wave};" 
              onclick="applyWaveTheme('${th.id}')">
           <span>${th.name}</span>
         </div>
@@ -1083,7 +1080,6 @@
       chips.forEach((c, idx) => {
         c.className = THEMES[idx].id === id ? 'theme-chip active' : 'theme-chip';
       });
-      // Viewport arka planını seçilen temaya dinamik eşitle
       const vp = document.getElementById('viewportBox');
       if (vp) vp.style.backgroundColor = selectedTheme.bg;
       renderEncodeCanvas();
@@ -1321,10 +1317,10 @@
         const bits = [];
         const aL = [[0,0], [0,1], [1,1], [1,0]], pL = [[0,0], [0,1], [1,1], [1,0]];
         for (let c of preds) bits.push(...aL[Math.floor(c / 4)], ...pL[c % 4]);
-
+        
         let codeword = new Uint8Array(PROTOCOL.totalBytes);
         for (let i = 0; i < PROTOCOL.totalBytes; i++) {
-          let b = 0;
+          let b = 0; 
           for (let k = 0; k < 8; k++) b = (b << 1) | bits[i * 8 + k];
           codeword[i] = b;
         }
