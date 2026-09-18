@@ -14,7 +14,7 @@ it maps payload bytes through reed-solomon error correction and 16-apsk continuo
 
 ### live demo
 
-generate wave patterns or decode an image directly in your browser:
+generate wave patterns or decode an NeWCode directly in your browser:
 
 > **[tturkayy.github.io/newcode/ ↗](https://tturkayy.github.io/newcode/)**
 
